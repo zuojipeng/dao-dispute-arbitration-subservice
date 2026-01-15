@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dao
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  webhook:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: ["node", "/app/infra/docker/webhook-server.js"]
+    ports:
+      - "9000:9000"
+
+  dao-service:
+    image: node:20-bullseye
+    working_dir: /app
+    env_file:
+      - ${ENV_FILE:-.env}
+    volumes:
+      - ./:/app
+      - dao_service_node_modules:/app/node_modules
+      - dao_service_pnpm_store:/pnpm-store
+    environment:
+      PNPM_STORE_DIR: /pnpm-store
+    depends_on:
+      - postgres
+      - webhook
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3001:3001"
+    command:
+      [
+        "sh",
+        "-c",
+        "corepack enable && pnpm install && pnpm --filter dao-service prisma generate --schema prisma/schema.prisma && pnpm --filter dao-service prisma migrate deploy && pnpm --filter dao-service dev"
+      ]
+
+  dao-worker:
+    image: node:20-bullseye
+    working_dir: /app
+    env_file:
+      - ${ENV_FILE:-.env}
+    volumes:
+      - ./:/app
+      - dao_worker_node_modules:/app/node_modules
+      - dao_worker_pnpm_store:/pnpm-store
+    environment:
+      PNPM_STORE_DIR: /pnpm-store
+    depends_on:
+      - postgres
+      - webhook
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      [
+        "sh",
+        "-c",
+        "corepack enable && pnpm install && pnpm --filter dao-service prisma generate --schema prisma/schema.prisma && pnpm --filter dao-service build && pnpm --filter dao-service start:worker"
+      ]
+
+volumes:
+  postgres_data:
+  dao_service_node_modules:
+  dao_worker_node_modules:
+  dao_service_pnpm_store:
+  dao_worker_pnpm_store:

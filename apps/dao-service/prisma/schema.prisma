@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DisputeStatus {
+  VOTING
+  RESOLVED
+}
+
+enum DisputeResult {
+  SUPPORT_AGENT
+  SUPPORT_USER
+}
+
+enum CallbackStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Dispute {
+  id                 String          @id @default(uuid())
+  platformDisputeId  String          @unique
+  jobId              String
+  billId             String
+  agentId            String
+  initiator          String
+  reason             String
+  evidenceUri        String?
+  chainId            Int
+  contractAddress    String
+  contractDisputeId  BigInt
+  deadline           DateTime
+  status             DisputeStatus
+  result             DisputeResult?
+  votesAgent         Int             @default(0)
+  votesUser          Int             @default(0)
+  finalizeTxHash     String?
+  callbackStatus     CallbackStatus  @default(PENDING)
+  callbackAttempts   Int             @default(0)
+  callbackNextAttemptAt DateTime?
+  callbackLastError  String?
+  votes              Vote[]
+}
+
+model Vote {
+  id          String  @id @default(uuid())
+  disputeId   String
+  voter       String
+  choice      Int
+  txHash      String
+  blockNumber Int
+  dispute     Dispute @relation(fields: [disputeId], references: [id])
+
+  @@unique([disputeId, voter])
+}

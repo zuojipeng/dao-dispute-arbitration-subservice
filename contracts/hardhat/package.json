@@ -1,0 +1,21 @@
+{
+  "name": "contracts-hardhat",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "lint": "echo 'lint placeholder'",
+    "node": "hardhat node",
+    "deploy:sepolia": "echo 'deploy sepolia placeholder'",
+    "deploy:local": "hardhat run scripts/deploy.ts --network hardhat",
+    "deploy:localhost": "hardhat run scripts/deploy.ts --network localhost"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.5",
+    "ethers": "^6.10.0",
+    "hardhat": "^2.20.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.3"
+  }
+}

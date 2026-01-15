@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.e2e
+.env.production
+.env.development
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Prisma
+apps/dao-service/prisma/migrations/*.sql
+!apps/dao-service/prisma/migrations/migration_lock.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker
+docker-compose.override.yml
+
+# Hardhat
+contracts/hardhat/cache/
+contracts/hardhat/artifacts/
+contracts/hardhat/deployments/localhost.json
+contracts/hardhat/deployments/local.json
+# 保留 sepolia.json 用于部署参考（可选，如果包含敏感信息也排除）
+
+# Documentation (local only)
+docs/
+
+# Misc
+*.pem
+*.key
+*.cert
+.cache/
+

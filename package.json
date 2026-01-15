@@ -1,0 +1,15 @@
+{
+  "name": "dao-dispute-arbitration-subservice",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@8.15.5",
+  "devDependencies": {
+    "ethers": "^6.16.0"
+  },
+  "scripts": {
+    "lint": "echo 'lint placeholder'",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "e2e:dao": "node scripts/e2e/dao-e2e.js"
+  }
+}
