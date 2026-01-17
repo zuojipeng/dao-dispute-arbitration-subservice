@@ -76,8 +76,32 @@ repo-root/
 - `apps/dao-service/src/disputes/disputes.module.ts`: disputes 模块占位。
 - `apps/dao-service/dist`: 构建输出。
 
+## 开发环境设置
+
+**重要**：使用 `pnpm` 前必须先切换 Node 版本！
+
+1. 切换到项目目录：
+   ```bash
+   cd dao-dispute-arbitration-subservice
+   ```
+
+2. 使用 nvm 切换到项目要求的 Node 版本：
+   ```bash
+   nvm install    # 自动读取 .nvmrc 并安装 Node 22
+   nvm use        # 切换到 Node 22
+   ```
+
+3. 验证版本：
+   ```bash
+   node --version  # 应显示 v22.x.x
+   ```
+
+4. 安装依赖：
+   ```bash
+   pnpm install
+   ```
+
 ## 运行方式（当前）
-- 安装依赖：`source ~/.nvm/nvm.sh && nvm use 22 && pnpm install`
 - 合约测试：`pnpm --filter contracts-hardhat test`
 - 合约本地部署：`pnpm --filter contracts-hardhat run deploy:local`
 - 服务构建：`pnpm --filter dao-service build`

@@ -267,6 +267,44 @@ repo-root/
 - **Prisma**：数据库 ORM 和迁移工具
 - **Docker**：容器化部署
 
+## 开发环境设置
+
+### Node.js 版本管理
+
+**要求**：
+- 项目使用 **Node.js 22+**
+- 必须使用 **nvm (Node Version Manager)** 管理 Node 版本
+- 项目根目录包含 `.nvmrc` 文件，指定所需 Node 版本
+
+**设置步骤**：
+1. 安装 nvm（如未安装）：
+   ```bash
+   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+   ```
+
+2. 切换到项目目录并安装/使用指定版本：
+   ```bash
+   cd dao-dispute-arbitration-subservice
+   nvm install    # 自动读取 .nvmrc 并安装对应版本
+   nvm use        # 切换到 .nvmrc 指定的版本
+   ```
+
+3. 验证版本：
+   ```bash
+   node --version  # 应显示 v22.x.x
+   ```
+
+**重要**：
+- 使用 `pnpm` 命令前，**必须先使用 nvm 切换到正确的 Node 版本**
+- 如果未切换版本，`pnpm` 可能无法正常工作或使用错误的 Node 版本
+- 建议在项目 README 或启动脚本中提醒开发者先执行 `nvm use`
+
+### 包管理器
+
+- **pnpm 8.15.5+**：Monorepo 包管理
+- 安装：`npm install -g pnpm@8.15.5` 或使用 `corepack enable && corepack prepare pnpm@8.15.5 --activate`
+- 使用前确保已切换到正确的 Node 版本（见上方）
+
 ## 部署环境
 
 ### 本地开发

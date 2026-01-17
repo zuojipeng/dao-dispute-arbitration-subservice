@@ -10,6 +10,9 @@ node_modules/
 .env.e2e
 .env.production
 .env.development
+.env.ec2
+.env.ec2.*
+.env.ec2.template
 
 # Build outputs
 dist/
@@ -64,7 +67,8 @@ contracts/hardhat/cache/
 contracts/hardhat/artifacts/
 contracts/hardhat/deployments/localhost.json
 contracts/hardhat/deployments/local.json
-# 保留 sepolia.json 用于部署参考（可选，如果包含敏感信息也排除）
+# 保留 sepolia.json 用于部署参考（合约地址是公开信息）
+# contracts/hardhat/deployments/sepolia.json
 
 # Documentation (local only)
 docs/
@@ -74,4 +78,10 @@ docs/
 *.key
 *.cert
 .cache/
+
+# Deployment scripts with sensitive info
+scripts/deploy-ec2.sh
+scripts/check-ssh.sh
+scripts/check-vpc-config.sh
+scripts/start-production.sh
 

@@ -7,7 +7,7 @@
     "compile": "hardhat compile",
     "lint": "echo 'lint placeholder'",
     "node": "hardhat node",
-    "deploy:sepolia": "echo 'deploy sepolia placeholder'",
+    "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "deploy:local": "hardhat run scripts/deploy.ts --network hardhat",
     "deploy:localhost": "hardhat run scripts/deploy.ts --network localhost"
   },
