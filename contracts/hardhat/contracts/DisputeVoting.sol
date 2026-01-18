@@ -98,6 +98,23 @@ contract DisputeVoting {
         emit DisputeFinalized(disputeId, dispute.result, dispute.votesAgent, dispute.votesUser);
     }
 
+    function voteOnBehalf(uint256 disputeId, address voter, uint8 choice) external {
+        require(msg.sender == admin, "ONLY_ADMIN");
+        Dispute storage dispute = disputes[disputeId];
+        require(dispute.deadline != 0, "NO_DISPUTE");
+        require(!hasVoted[disputeId][voter], "ALREADY_VOTED");
+        require(choice == 1 || choice == 2, "BAD_CHOICE");
+
+        hasVoted[disputeId][voter] = true;
+        if (choice == 1) {
+            dispute.votesAgent += 1;
+        } else {
+            dispute.votesUser += 1;
+        }
+
+        emit Voted(disputeId, voter, choice);
+    }
+
     function _finalize(Dispute storage dispute) private {
         dispute.finalized = true;
         if (dispute.votesAgent > dispute.votesUser) {

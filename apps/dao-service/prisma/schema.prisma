@@ -45,6 +45,8 @@ model Dispute {
   callbackAttempts   Int             @default(0)
   callbackNextAttemptAt DateTime?
   callbackLastError  String?
+  tokenAddress       String?
+  minBalance         String?
   votes              Vote[]
 }
 

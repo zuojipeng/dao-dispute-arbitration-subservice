@@ -7,6 +7,7 @@ export const configSchema = z.object({
   VOTING_CONTRACT: z.string().min(1),
   TOKEN_CONTRACT: z.string().min(1),
   MIN_BALANCE: z.string().min(1),
+  MIN_BALANCE_MAP: z.string().optional(), // JSON格式: {"0xTokenA": "100000000000000000000", "0xTokenB": "50000000000000000"}
   PLATFORM_WEBHOOK_URL: z.string().min(1),
   HMAC_SECRET: z.string().min(1),
   START_BLOCK: z.coerce.number().int().nonnegative(),

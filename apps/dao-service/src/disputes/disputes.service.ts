@@ -1,9 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { DisputeStatus } from "@prisma/client";
 import { ChainService } from "../chain/chain.service";
 import { ConfigService } from "../config/config.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { CreateDisputeInput } from "./disputes.dto";
+import { CreateDisputeInput, VoteInput } from "./disputes.dto";
 
 @Injectable()
 export class DisputesService {
@@ -26,6 +26,8 @@ export class DisputesService {
     const config = this.configService.get();
     const deadlineDate = new Date(Number(deadline) * 1000);
 
+    const minBalance = this.configService.getMinBalance(input.tokenAddress);
+
     const created = await this.prisma.dispute.create({
       data: {
         platformDisputeId: input.platformDisputeId,
@@ -39,7 +41,9 @@ export class DisputesService {
         contractAddress: config.VOTING_CONTRACT,
         contractDisputeId: disputeId,
         deadline: deadlineDate,
-        status: DisputeStatus.VOTING
+        status: DisputeStatus.VOTING,
+        tokenAddress: input.tokenAddress,
+        minBalance: minBalance
       }
     });
 
@@ -65,6 +69,58 @@ export class DisputesService {
       where: { platformDisputeId }
     });
     return dispute ? this.formatDispute(dispute) : null;
+  }
+
+  async vote(platformDisputeId: string, input: VoteInput) {
+    const dispute = await this.prisma.dispute.findUnique({
+      where: { platformDisputeId }
+    });
+
+    if (!dispute || dispute.status !== DisputeStatus.VOTING) {
+      throw new BadRequestException("Dispute not found or not in voting");
+    }
+
+    const existingVote = await this.prisma.vote.findUnique({
+      where: {
+        disputeId_voter: {
+          disputeId: dispute.id,
+          voter: input.voter.toLowerCase()
+        }
+      }
+    });
+
+    if (existingVote) {
+      throw new BadRequestException("Already voted");
+    }
+
+    const config = this.configService.get();
+    const tokenAddress = dispute.tokenAddress || config.TOKEN_CONTRACT;
+    const minBalance = BigInt(dispute.minBalance || config.MIN_BALANCE);
+
+    const balance = await this.chainService.getTokenBalance(tokenAddress, input.voter);
+
+    if (balance < minBalance) {
+      throw new BadRequestException("Insufficient balance");
+    }
+
+    const tx = await this.chainService.voteOnBehalf(
+      dispute.contractDisputeId,
+      input.voter,
+      input.choice
+    );
+    const receipt = await tx.wait();
+
+    await this.prisma.vote.create({
+      data: {
+        disputeId: dispute.id,
+        voter: input.voter.toLowerCase(),
+        choice: input.choice,
+        txHash: receipt.hash,
+        blockNumber: receipt.blockNumber
+      }
+    });
+
+    return { txHash: receipt.hash };
   }
 
   async forceFinalize(platformDisputeId: string) {
@@ -112,7 +168,9 @@ export class DisputesService {
       votesAgent: dispute.votesAgent,
       votesUser: dispute.votesUser,
       finalizeTxHash: dispute.finalizeTxHash,
-      callbackStatus: dispute.callbackStatus
+      callbackStatus: dispute.callbackStatus,
+      tokenAddress: dispute.tokenAddress,
+      minBalance: dispute.minBalance
     };
   }
 }

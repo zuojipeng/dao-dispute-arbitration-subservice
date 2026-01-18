@@ -8,7 +8,8 @@ const VOTING_ABI = [
   "event DisputeFinalized(uint256 indexed disputeId, uint8 result, uint256 votesAgent, uint256 votesUser)",
   "function createDispute(bytes32 platformDisputeIdHash) returns (uint256)",
   "function finalize(uint256 disputeId)",
-  "function forceFinalize(uint256 disputeId)"
+  "function forceFinalize(uint256 disputeId)",
+  "function voteOnBehalf(uint256 disputeId, address voter, uint8 choice)"
 ];
 
 @Injectable()
@@ -82,5 +83,16 @@ export class ChainService {
   async forceFinalizeDispute(disputeId: bigint) {
     const contract = await this.getWriteContract();
     return contract.forceFinalize(disputeId);
+  }
+
+  async voteOnBehalf(disputeId: bigint, voter: string, choice: number) {
+    const contract = await this.getWriteContract();
+    return contract.voteOnBehalf(disputeId, voter, choice);
+  }
+
+  async getTokenBalance(tokenAddress: string, address: string): Promise<bigint> {
+    const tokenAbi = ["function balanceOf(address) view returns (uint256)"];
+    const tokenContract = new ethers.Contract(tokenAddress, tokenAbi, this.provider);
+    return await tokenContract.balanceOf(address);
   }
 }

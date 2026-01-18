@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,7 +11,7 @@ import {
 } from "@nestjs/common";
 import { DisputeStatus } from "@prisma/client";
 import { HmacGuard } from "../auth/hmac.guard";
-import { createDisputeSchema } from "./disputes.dto";
+import { createDisputeSchema, voteSchema } from "./disputes.dto";
 import { DisputesService } from "./disputes.service";
 
 @Controller("v1/disputes")
@@ -47,6 +48,22 @@ export class DisputesController {
       throw new NotFoundException("Dispute not found");
     }
     return dispute;
+  }
+
+  @Post(":platformDisputeId/vote")
+  async vote(
+    @Param("platformDisputeId") platformDisputeId: string,
+    @Body() body: unknown
+  ) {
+    try {
+      const input = voteSchema.parse(body);
+      return await this.disputesService.vote(platformDisputeId, input);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        throw new BadRequestException("Invalid request body");
+      }
+      throw error;
+    }
   }
 
   @Post(":platformDisputeId/force-finalize")
