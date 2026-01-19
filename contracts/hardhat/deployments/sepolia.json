@@ -1,8 +1,8 @@
 {
   "chainId": 11155111,
-  "votingContract": "0x65AE39021Ff937f65d154A1f155952e099d5BF5d",
-  "tokenContract": "0x98dfA99808e41cE269Cc7296B8721720CF393be9",
+  "votingContract": "0x1DdDA662916e6e03548EAcBf5640AeCF55FFe582",
+  "tokenContract": "0x5D2F8D5aCEf44b8e7aC0c67696962ee93807db95",
   "minBalance": "100000000000000000000",
   "voteDuration": 3600,
-  "startBlock": 10068216
+  "startBlock": 10078986
 }

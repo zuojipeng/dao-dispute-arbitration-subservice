@@ -1,0 +1,37 @@
+# ==========================================
+# EC2部署命令清单
+# 在AWS控制台的EC2 Instance Connect终端中执行
+# ==========================================
+
+# 1. 进入项目目录
+cd ~/dao-dispute-arbitration-subservice
+
+# 2. 拉取最新代码
+git pull origin main
+
+# 3. 自动更新Sepolia配置
+bash update-env-sepolia.sh
+
+# 4. 运行数据库迁移
+docker run --rm -v $(pwd):/app -w /app --env-file .env node:20-bullseye sh -c "corepack enable && pnpm install && pnpm --filter dao-service prisma migrate deploy"
+
+# 5. 重启服务
+docker compose restart dao-service dao-worker
+
+# 6. 查看服务状态
+docker compose ps
+
+# 7. 查看日志（检查是否有错误）
+docker compose logs --tail=50 dao-service
+
+# 8. 验证配置（应该显示chainId:11155111和新的合约地址）
+curl -s http://localhost:3001/v1/disputes | grep -E '(chainId|contractAddress)' | head -2
+
+# ==========================================
+# 部署完成！
+# ==========================================
+# 预期结果：
+# - chainId: 11155111 (Sepolia)
+# - contractAddress: 0x1DdDA662916e6e03548EAcBf5640AeCF55FFe582
+# ==========================================
+
