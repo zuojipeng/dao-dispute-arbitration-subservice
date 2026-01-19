@@ -13,20 +13,37 @@ export class FinalizerService {
 
   constructor(private readonly prisma: PrismaService, private readonly chainService: ChainService) {}
 
-  start() {
+  async start() {
     if (this.interval) {
       return;
     }
-    this.runOnce().catch((error) => this.logger.error(error));
+    
+    this.logger.log('Starting finalizer...');
+    await this.runOnce().catch((error) => this.logger.error(error));
     this.interval = setInterval(() => {
       this.runOnce().catch((error) => this.logger.error(error));
     }, FINALIZER_INTERVAL_MS);
   }
 
-  stop() {
+  async stop() {
+    this.logger.log('Stopping finalizer...');
+    
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = undefined;
+    }
+
+    // 等待当前 runOnce 完成
+    let waitCount = 0;
+    while (this.running && waitCount < 100) {  // 最多等待 10 秒
+      await new Promise(resolve => setTimeout(resolve, 100));
+      waitCount++;
+    }
+
+    if (this.running) {
+      this.logger.warn('Finalizer force stopped while still running');
+    } else {
+      this.logger.log('Finalizer stopped gracefully');
     }
   }
 
@@ -49,7 +66,7 @@ export class FinalizerService {
       for (const dispute of disputes) {
         try {
           const tx = await this.chainService.finalizeDispute(dispute.contractDisputeId);
-          const receipt = await tx.wait();
+          const receipt = await this.chainService.waitForTransaction(tx);
           const iface = this.chainService.getInterface();
 
           for (const log of receipt.logs ?? []) {

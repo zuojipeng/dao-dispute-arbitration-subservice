@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum DisputeStatus {
+  CREATING  // 占位状态，正在创建链上争议
   VOTING
   RESOLVED
 }
@@ -48,6 +49,11 @@ model Dispute {
   tokenAddress       String?
   minBalance         String?
   votes              Vote[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([contractDisputeId])
+  @@index([status, deadline])
 }
 
 model Vote {
@@ -60,4 +66,12 @@ model Vote {
   dispute     Dispute @relation(fields: [disputeId], references: [id])
 
   @@unique([disputeId, voter])
+}
+
+model IndexerCheckpoint {
+  id            String   @id @default("singleton")
+  lastBlock     Int
+  lastBlockHash String?
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
 }

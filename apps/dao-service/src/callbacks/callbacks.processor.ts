@@ -19,20 +19,37 @@ export class CallbacksProcessor {
     private readonly callbacksService: CallbacksService
   ) {}
 
-  start() {
+  async start() {
     if (this.interval) {
       return;
     }
-    this.runOnce().catch((error) => this.logger.error(error));
+    
+    this.logger.log('Starting callbacks processor...');
+    await this.runOnce().catch((error) => this.logger.error(error));
     this.interval = setInterval(() => {
       this.runOnce().catch((error) => this.logger.error(error));
     }, CALLBACK_INTERVAL_MS);
   }
 
-  stop() {
+  async stop() {
+    this.logger.log('Stopping callbacks processor...');
+    
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = undefined;
+    }
+
+    // 等待当前 runOnce 完成
+    let waitCount = 0;
+    while (this.running && waitCount < 100) {  // 最多等待 10 秒
+      await new Promise(resolve => setTimeout(resolve, 100));
+      waitCount++;
+    }
+
+    if (this.running) {
+      this.logger.warn('Callbacks processor force stopped while still running');
+    } else {
+      this.logger.log('Callbacks processor stopped gracefully');
     }
   }
 

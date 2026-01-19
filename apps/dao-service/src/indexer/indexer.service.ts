@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { CallbackStatus, DisputeResult, DisputeStatus, Prisma } from "@prisma/client";
 import { ethers } from "ethers";
 import { ChainService } from "../chain/chain.service";
@@ -6,15 +6,18 @@ import { ConfigService } from "../config/config.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 const INDEXER_INTERVAL_MS = 10_000;
+const MAX_BLOCKS_PER_BATCH = 1000;  // 每批最多处理 1000 个区块
+const CONFIRMATIONS = 1;             // 等待确认数（生产环境建议 6，本地测试可设为 0-1）
 
 @Injectable()
-export class IndexerService {
+export class IndexerService implements OnModuleInit {
   private readonly logger = new Logger(IndexerService.name);
   private readonly contract: ethers.Contract;
   private readonly provider: ethers.JsonRpcProvider;
   private fromBlock: number;
   private running = false;
   private interval?: NodeJS.Timeout;
+  private initialized = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -22,47 +25,153 @@ export class IndexerService {
     private readonly configService: ConfigService
   ) {
     const config = this.configService.get();
-    this.fromBlock = config.START_BLOCK;
+    this.fromBlock = config.START_BLOCK;  // 默认值，会被 checkpoint 覆盖
     this.contract = this.chainService.getReadContract();
     this.provider = this.chainService.getProvider();
   }
 
-  start() {
+  /**
+   * 模块初始化时加载 checkpoint
+   */
+  async onModuleInit() {
+    await this.loadCheckpoint();
+    this.initialized = true;
+  }
+
+  /**
+   * 从数据库加载上次索引的位置
+   */
+  private async loadCheckpoint() {
+    try {
+      const checkpoint = await this.prisma.indexerCheckpoint.findUnique({
+        where: { id: 'singleton' }
+      });
+
+      if (checkpoint) {
+        this.fromBlock = checkpoint.lastBlock + 1;  // 从下一个区块开始
+        this.logger.log(`Loaded checkpoint: resuming from block ${this.fromBlock}`);
+      } else {
+        const config = this.configService.get();
+        this.fromBlock = config.START_BLOCK;
+        this.logger.log(`No checkpoint found, starting from block ${this.fromBlock}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to load checkpoint: ${error}`, error instanceof Error ? error.stack : undefined);
+      // 失败时使用配置的 START_BLOCK
+      const config = this.configService.get();
+      this.fromBlock = config.START_BLOCK;
+    }
+  }
+
+  /**
+   * 保存当前索引位置到数据库
+   */
+  private async saveCheckpoint(blockNumber: number, blockHash?: string) {
+    try {
+      await this.prisma.indexerCheckpoint.upsert({
+        where: { id: 'singleton' },
+        update: {
+          lastBlock: blockNumber,
+          lastBlockHash: blockHash
+        },
+        create: {
+          id: 'singleton',
+          lastBlock: blockNumber,
+          lastBlockHash: blockHash
+        }
+      });
+    } catch (error) {
+      this.logger.error(`Failed to save checkpoint: ${error}`);
+      // 不抛出错误，允许索引继续
+    }
+  }
+
+  async start() {
     if (this.interval) {
       return;
     }
+
+    // 确保已初始化
+    if (!this.initialized) {
+      await this.loadCheckpoint();
+      this.initialized = true;
+    }
+
+    this.logger.log('Starting indexer...');
     this.poll().catch((error) => this.logger.error(error));
     this.interval = setInterval(() => {
       this.poll().catch((error) => this.logger.error(error));
     }, INDEXER_INTERVAL_MS);
   }
 
-  stop() {
+  async stop() {
+    this.logger.log('Stopping indexer...');
+    
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = undefined;
+    }
+
+    // 等待当前 poll 完成
+    let waitCount = 0;
+    while (this.running && waitCount < 100) {  // 最多等待 10 秒
+      await new Promise(resolve => setTimeout(resolve, 100));
+      waitCount++;
+    }
+
+    if (this.running) {
+      this.logger.warn('Indexer force stopped while still running');
+    } else {
+      this.logger.log('Indexer stopped gracefully');
     }
   }
 
   private async poll() {
     if (this.running) {
+      this.logger.log('Poll skipped: already running');
       return;
     }
     this.running = true;
     try {
       const latest = await this.provider.getBlockNumber();
-      if (latest < this.fromBlock) {
+      
+      // 使用 confirmations 避免 reorg
+      const confirmedBlock = Math.max(latest - CONFIRMATIONS, 0);
+      
+      if (confirmedBlock < this.fromBlock) {
+        this.logger.log(`No new confirmed blocks (latest: ${latest}, confirmed: ${confirmedBlock}, from: ${this.fromBlock})`);
         return;
       }
 
       const from = this.fromBlock;
-      const to = latest;
+      const to = confirmedBlock;
 
-      await this.handleDisputeCreated(from, to);
-      await this.handleVoted(from, to);
-      await this.handleFinalized(from, to);
+      this.logger.log(`Indexing blocks ${from} to ${to} (latest: ${latest}, confirmations: ${CONFIRMATIONS})`);
 
-      this.fromBlock = to + 1;
+      // 分批处理，避免 RPC 限制
+      for (let batchStart = from; batchStart <= to; batchStart += MAX_BLOCKS_PER_BATCH) {
+        const batchEnd = Math.min(batchStart + MAX_BLOCKS_PER_BATCH - 1, to);
+        
+        try {
+          this.logger.log(`Processing batch: blocks ${batchStart}-${batchEnd}`);
+          
+          await this.handleDisputeCreated(batchStart, batchEnd);
+          await this.handleVoted(batchStart, batchEnd);
+          await this.handleFinalized(batchStart, batchEnd);
+
+          // 每批处理后保存 checkpoint
+          await this.saveCheckpoint(batchEnd);
+          this.fromBlock = batchEnd + 1;
+          
+          this.logger.log(`Batch ${batchStart}-${batchEnd} completed, checkpoint saved`);
+        } catch (error) {
+          this.logger.error(`Failed to process batch ${batchStart}-${batchEnd}: ${error}`);
+          // 停止当前轮次，下次从失败的批次重试
+          break;
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Indexer poll error: ${error}`, error instanceof Error ? error.stack : undefined);
     } finally {
       this.running = false;
     }
