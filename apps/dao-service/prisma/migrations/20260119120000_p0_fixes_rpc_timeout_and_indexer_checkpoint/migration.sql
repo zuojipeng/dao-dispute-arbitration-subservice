@@ -18,3 +18,4 @@ CREATE TABLE "IndexerCheckpoint" (
 -- VALUES ('singleton', 0, NOW()) 
 -- ON CONFLICT (id) DO NOTHING;
 
+

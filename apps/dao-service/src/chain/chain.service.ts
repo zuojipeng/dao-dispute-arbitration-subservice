@@ -172,13 +172,42 @@ export class ChainService {
 
   async getTokenBalance(tokenAddress: string, address: string): Promise<bigint> {
     const tokenAbi = ["function balanceOf(address) view returns (uint256)"];
-    const tokenContract = new ethers.Contract(tokenAddress, tokenAbi, this.provider);
     
-    return await this.withTimeout(
-      tokenContract.balanceOf(address),
-      RPC_TIMEOUT_MS,
-      'Get token balance'
-    );
+    // 验证代币合约地址格式
+    if (!ethers.isAddress(tokenAddress)) {
+      throw new Error(`Invalid token contract address: ${tokenAddress}`);
+    }
+    
+    // 验证用户地址格式
+    if (!ethers.isAddress(address)) {
+      throw new Error(`Invalid address: ${address}`);
+    }
+    
+    try {
+      const tokenContract = new ethers.Contract(tokenAddress, tokenAbi, this.provider);
+      
+      // 先检查合约是否存在（通过 code size）
+      const code = await this.provider.getCode(tokenAddress);
+      if (code === '0x') {
+        throw new Error(
+          `Token contract does not exist at address ${tokenAddress}. Please verify the contract address is correct.`
+        );
+      }
+      
+      return await this.withTimeout(
+        tokenContract.balanceOf(address),
+        RPC_TIMEOUT_MS,
+        'Get token balance'
+      );
+    } catch (error: any) {
+      // 如果是合约调用错误，可能是合约不存在或不是ERC20
+      if (error.code === 'BAD_DATA' || error.message?.includes('could not decode result data')) {
+        throw new Error(
+          `Failed to call balanceOf on token contract ${tokenAddress}. The contract may not be an ERC20 token or the contract does not exist at this address.`
+        );
+      }
+      throw error;
+    }
   }
   
   /**

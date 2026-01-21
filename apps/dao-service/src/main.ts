@@ -38,6 +38,7 @@ async function bootstrap() {
   const port = config.PORT ?? 3000;
 
   await app.listen(port);
+  console.log(`🚀 DAO Service is running on http://0.0.0.0:${port}`);
 }
 
 bootstrap().catch((error) => {

@@ -26,15 +26,65 @@ export class DisputesService {
    */
   async createDispute(input: CreateDisputeInput) {
     const config = this.configService.get();
-    const minBalance = this.configService.getMinBalance(input.tokenAddress);
+    
+    // 验证平台是否存在并获取平台配置
+    const platform = await this.prisma.platform.findUnique({
+      where: { id: input.platformId }
+    });
+
+    if (!platform) {
+      throw new BadRequestException(`Platform with id '${input.platformId}' not found`);
+    }
+
+    // 使用平台配置或输入中的tokenAddress
+    const tokenAddress = input.tokenAddress || platform.tokenContract;
+    const minBalance = input.tokenAddress 
+      ? this.configService.getMinBalance(input.tokenAddress)
+      : platform.minBalance;
 
     let dispute: any;
     let isNewDispute = false;
 
     try {
       // 阶段1：原子性占位（利用 platformDisputeId 唯一约束）
+      // 同时检查是否已存在相同platformId和platformDisputeId的组合（幂等性）
+      const existing = await this.prisma.dispute.findUnique({
+        where: { platformDisputeId: input.platformDisputeId },
+        include: { platform: true }
+      });
+
+      if (existing) {
+        // 如果已存在且platformId匹配，直接返回
+        if (existing.platformId === input.platformId) {
+          if (existing.status !== DisputeStatus.CREATING) {
+            this.logger.log(`Dispute ${input.platformDisputeId} already exists`);
+            return this.formatDispute(existing);
+          }
+          // 仍在CREATING状态，等待完成
+          for (let i = 0; i < 20; i++) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const updated = await this.prisma.dispute.findUnique({
+              where: { platformDisputeId: input.platformDisputeId },
+              include: { platform: true }
+            });
+            if (updated && updated.status !== DisputeStatus.CREATING) {
+              return this.formatDispute(updated);
+            }
+          }
+          throw new BadRequestException(
+            `Dispute creation timeout for ${input.platformDisputeId}. Please try again later.`
+          );
+        } else {
+          // platformId不匹配，返回错误
+          throw new BadRequestException(
+            `Dispute with platformDisputeId '${input.platformDisputeId}' already exists with different platformId`
+          );
+        }
+      }
+
       dispute = await this.prisma.dispute.create({
         data: {
+          platformId: input.platformId,
           platformDisputeId: input.platformDisputeId,
           jobId: input.jobId,
           billId: input.billId,
@@ -47,9 +97,10 @@ export class DisputesService {
           contractDisputeId: 0n,  // 占位值，等待链上创建
           deadline: new Date(0),   // 占位值，等待链上返回
           status: DisputeStatus.CREATING,  // 占位状态
-          tokenAddress: input.tokenAddress,
+          tokenAddress: tokenAddress,
           minBalance: minBalance
-        }
+        },
+        include: { platform: true }
       });
       isNewDispute = true;
       this.logger.log(`Created placeholder for dispute ${input.platformDisputeId}`);
@@ -63,7 +114,8 @@ export class DisputesService {
           await new Promise(resolve => setTimeout(resolve, 500));
           
           const existing = await this.prisma.dispute.findUnique({
-            where: { platformDisputeId: input.platformDisputeId }
+            where: { platformDisputeId: input.platformDisputeId },
+            include: { platform: true }
           });
           
           if (existing) {
@@ -102,7 +154,8 @@ export class DisputesService {
           contractDisputeId: disputeId,
           deadline: deadlineDate,
           status: DisputeStatus.VOTING
-        }
+        },
+        include: { platform: true }
       });
 
       this.logger.log(
@@ -127,7 +180,7 @@ export class DisputesService {
     }
   }
 
-  async listDisputes(status?: DisputeStatus, page = 1, pageSize = 20) {
+  async listDisputes(status?: DisputeStatus, platformId?: string, page = 1, pageSize = 20) {
     const take = Math.min(Math.max(pageSize, 1), 100);
     const skip = Math.max(page - 1, 0) * take;
 
@@ -143,8 +196,14 @@ export class DisputesService {
       };
     }
 
+    // 添加平台过滤
+    if (platformId) {
+      whereClause.platformId = platformId;
+    }
+
     const disputes = await this.prisma.dispute.findMany({
       where: whereClause,
+      include: { platform: true },
       orderBy: { deadline: "asc" },
       skip,
       take
@@ -155,14 +214,16 @@ export class DisputesService {
 
   async getDispute(platformDisputeId: string) {
     const dispute = await this.prisma.dispute.findUnique({
-      where: { platformDisputeId }
+      where: { platformDisputeId },
+      include: { platform: true }
     });
     return dispute ? this.formatDispute(dispute) : null;
   }
 
   async vote(platformDisputeId: string, input: VoteInput) {
     const dispute = await this.prisma.dispute.findUnique({
-      where: { platformDisputeId }
+      where: { platformDisputeId },
+      include: { platform: true }
     });
 
     if (!dispute || dispute.status !== DisputeStatus.VOTING) {
@@ -182,11 +243,60 @@ export class DisputesService {
       throw new BadRequestException("Already voted");
     }
 
-    const config = this.configService.get();
-    const tokenAddress = dispute.tokenAddress || config.TOKEN_CONTRACT;
-    const minBalance = BigInt(dispute.minBalance || config.MIN_BALANCE);
+    // 动态查找平台配置
+    // 优先使用平台配置，否则使用争议存储的配置，最后使用默认配置
+    let tokenAddress: string;
+    let minBalance: bigint;
 
-    const balance = await this.chainService.getTokenBalance(tokenAddress, input.voter);
+    if (dispute.platform) {
+      // 使用平台配置
+      tokenAddress = dispute.tokenAddress || dispute.platform.tokenContract;
+      minBalance = BigInt(dispute.minBalance || dispute.platform.minBalance);
+      this.logger.debug(
+        `Using platform config for voting: platformId=${dispute.platform.id}, tokenAddress=${tokenAddress}, minBalance=${minBalance}`
+      );
+    } else {
+      // 向后兼容：使用争议存储的配置或默认配置
+      const config = this.configService.get();
+      const defaultConfig = this.configService.getDefaultPlatformConfig();
+      tokenAddress = dispute.tokenAddress || defaultConfig.tokenContract;
+      minBalance = BigInt(dispute.minBalance || defaultConfig.minBalance);
+      this.logger.debug(
+        `Using default config for voting: tokenAddress=${tokenAddress}, minBalance=${minBalance}`
+      );
+    }
+
+    // 验证代币合约地址格式
+    if (!/^0x[a-fA-F0-9]{40}$/.test(tokenAddress)) {
+      throw new BadRequestException(
+        `Invalid token contract address: ${tokenAddress}. Token address must be a valid 40-character hex address starting with 0x.`
+      );
+    }
+
+    this.logger.debug(
+      `Checking balance for voter ${input.voter} in token contract ${tokenAddress}`
+    );
+
+    let balance: bigint;
+    try {
+      balance = await this.chainService.getTokenBalance(tokenAddress, input.voter);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to get token balance: tokenAddress=${tokenAddress}, voter=${input.voter}, error=${error.message}`
+      );
+      
+      // 如果返回的是解码错误，说明合约地址可能无效
+      if (error.code === 'BAD_DATA' || error.message?.includes('could not decode result data')) {
+        throw new BadRequestException(
+          `Invalid token contract address: ${tokenAddress}. The contract does not exist or is not an ERC20 token. Please check the platform configuration.`
+        );
+      }
+      
+      // 其他错误原样抛出
+      throw new BadRequestException(
+        `Failed to query token balance: ${error.message}. Please check the token contract address and RPC connection.`
+      );
+    }
 
     if (balance < minBalance) {
       throw new BadRequestException("Insufficient balance");
@@ -220,7 +330,8 @@ export class DisputesService {
    */
   async forceFinalize(platformDisputeId: string) {
     const dispute = await this.prisma.dispute.findUnique({
-      where: { platformDisputeId }
+      where: { platformDisputeId },
+      include: { platform: true }
     });
     
     if (!dispute) {
@@ -256,7 +367,8 @@ export class DisputesService {
       
       // 重新查询获取最新状态
       const updatedDispute = await this.prisma.dispute.findUnique({
-        where: { platformDisputeId }
+        where: { platformDisputeId },
+        include: { platform: true }
       });
       
       return {
@@ -308,6 +420,13 @@ export class DisputesService {
     return {
       id: dispute.id,
       platformDisputeId: dispute.platformDisputeId,
+      platformId: dispute.platformId,
+      platform: dispute.platform ? {
+        id: dispute.platform.id,
+        name: dispute.platform.name,
+        tokenContract: dispute.platform.tokenContract,
+        minBalance: dispute.platform.minBalance
+      } : null,
       jobId: dispute.jobId,
       billId: dispute.billId,
       agentId: dispute.agentId,

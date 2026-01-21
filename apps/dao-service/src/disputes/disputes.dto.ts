@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createDisputeSchema = z.object({
+  platformId: z.string().min(1), // 必填：关联的平台ID
   platformDisputeId: z.string().min(1),
   jobId: z.string().min(1),
   billId: z.string().min(1),

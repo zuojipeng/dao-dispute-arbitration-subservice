@@ -28,6 +28,7 @@ export class DisputesController {
   @Get()
   async list(
     @Query("status") status?: string,
+    @Query("platformId") platformId?: string,
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string
   ) {
@@ -38,7 +39,7 @@ export class DisputesController {
 
     const parsedPage = page ? Number(page) : 1;
     const parsedPageSize = pageSize ? Number(pageSize) : 20;
-    return this.disputesService.listDisputes(parsedStatus, parsedPage, parsedPageSize);
+    return this.disputesService.listDisputes(parsedStatus, platformId, parsedPage, parsedPageSize);
   }
 
   @Get(":platformDisputeId")

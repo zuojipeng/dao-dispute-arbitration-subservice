@@ -15,3 +15,4 @@ CREATE INDEX IF NOT EXISTS "Dispute_contractDisputeId_idx" ON "Dispute"("contrac
 -- 添加复合索引以优化 Finalizer 查询（查找到期的 VOTING 状态争议）
 CREATE INDEX IF NOT EXISTS "Dispute_status_deadline_idx" ON "Dispute"("status", "deadline");
 
+

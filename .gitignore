@@ -79,9 +79,18 @@ docs/
 *.cert
 .cache/
 
+# Shell scripts (excluding from version control)
+*.sh
+
+# Markdown documentation (keep only openspec and root README.md)
+**/*.md
+!README.md
+!openspec/**/*.md
+
 # Deployment scripts with sensitive info
-scripts/deploy-ec2.sh
-scripts/check-ssh.sh
-scripts/check-vpc-config.sh
-scripts/start-production.sh
+# (already covered by *.sh above, keeping for reference)
+# scripts/deploy-ec2.sh
+# scripts/check-ssh.sh
+# scripts/check-vpc-config.sh
+# scripts/start-production.sh
 

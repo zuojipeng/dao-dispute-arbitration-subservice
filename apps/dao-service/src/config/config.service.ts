@@ -48,4 +48,17 @@ export class ConfigService {
     const normalizedAddress = tokenAddress.toLowerCase();
     return this.minBalanceMap.get(normalizedAddress) || this.config.MIN_BALANCE;
   }
+
+  /**
+   * 获取默认平台配置
+   * 优先使用 DEFAULT_TOKEN_CONTRACT 和 DEFAULT_MIN_BALANCE
+   * 如果没有设置，则使用 TOKEN_CONTRACT 和 MIN_BALANCE（向后兼容）
+   * @returns 默认平台配置对象
+   */
+  getDefaultPlatformConfig(): { tokenContract: string; minBalance: string } {
+    return {
+      tokenContract: this.config.DEFAULT_TOKEN_CONTRACT || this.config.TOKEN_CONTRACT,
+      minBalance: this.config.DEFAULT_MIN_BALANCE || this.config.MIN_BALANCE
+    };
+  }
 }

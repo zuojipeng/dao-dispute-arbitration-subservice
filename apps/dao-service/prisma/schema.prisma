@@ -24,9 +24,26 @@ enum CallbackStatus {
   FAILED
 }
 
+model Platform {
+  id            String    @id
+  name          String
+  tokenContract String
+  minBalance    String
+  chainId       Int
+  description   String?
+  webhookUrl    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  disputes      Dispute[]
+
+  @@index([tokenContract])
+}
+
 model Dispute {
   id                 String          @id @default(uuid())
   platformDisputeId  String          @unique
+  platformId         String?         // 关联平台ID（nullable for backward compatibility）
   jobId              String
   billId             String
   agentId            String
@@ -48,12 +65,14 @@ model Dispute {
   callbackLastError  String?
   tokenAddress       String?
   minBalance         String?
+  platform           Platform?       @relation(fields: [platformId], references: [id], onDelete: SetNull)
   votes              Vote[]
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
   @@index([contractDisputeId])
   @@index([status, deadline])
+  @@index([platformId])
 }
 
 model Vote {

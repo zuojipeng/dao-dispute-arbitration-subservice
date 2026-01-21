@@ -304,3 +304,4 @@ async getTokenBalance(tokenAddress: string, address: string): Promise<bigint> {
 4. **审计日志**：记录所有链下验证的投票
 5. **权限控制**：`voteOnBehalf` 仅允许授权地址调用
 
+
