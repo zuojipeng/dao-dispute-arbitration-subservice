@@ -36,11 +36,9 @@ export class DisputesService {
       throw new BadRequestException(`Platform with id '${input.platformId}' not found`);
     }
 
-    // 使用平台配置或输入中的tokenAddress
-    const tokenAddress = input.tokenAddress || platform.tokenContract;
-    const minBalance = input.tokenAddress 
-      ? this.configService.getMinBalance(input.tokenAddress)
-      : platform.minBalance;
+    // 使用平台配置的代币合约和最小余额
+    const tokenAddress = platform.tokenContract;
+    const minBalance = platform.minBalance;
 
     let dispute: any;
     let isNewDispute = false;
@@ -86,12 +84,13 @@ export class DisputesService {
         data: {
           platformId: input.platformId,
           platformDisputeId: input.platformDisputeId,
-          jobId: input.jobId,
-          billId: input.billId,
-          agentId: input.agentId,
-          initiator: input.initiator,
-          reason: input.reason,
-          evidenceUri: input.evidenceUri,
+          // 业务信息不再存储，使用默认值（数据库schema要求这些字段必填）
+          jobId: "",
+          billId: "",
+          agentId: "",
+          initiator: "",
+          reason: "",
+          evidenceUri: null,
           chainId: config.CHAIN_ID,
           contractAddress: config.VOTING_CONTRACT,
           contractDisputeId: 0n,  // 占位值，等待链上创建
@@ -417,24 +416,10 @@ export class DisputesService {
   }
 
   private formatDispute(dispute: any) {
+    // 只返回投票相关信息，不返回业务信息
     return {
-      id: dispute.id,
       platformDisputeId: dispute.platformDisputeId,
       platformId: dispute.platformId,
-      platform: dispute.platform ? {
-        id: dispute.platform.id,
-        name: dispute.platform.name,
-        tokenContract: dispute.platform.tokenContract,
-        minBalance: dispute.platform.minBalance
-      } : null,
-      jobId: dispute.jobId,
-      billId: dispute.billId,
-      agentId: dispute.agentId,
-      initiator: dispute.initiator,
-      reason: dispute.reason,
-      evidenceUri: dispute.evidenceUri,
-      chainId: dispute.chainId,
-      contractAddress: dispute.contractAddress,
       contractDisputeId: dispute.contractDisputeId.toString(),
       deadline: dispute.deadline.toISOString(),
       status: dispute.status,
@@ -442,9 +427,10 @@ export class DisputesService {
       votesAgent: dispute.votesAgent,
       votesUser: dispute.votesUser,
       finalizeTxHash: dispute.finalizeTxHash,
-      callbackStatus: dispute.callbackStatus,
       tokenAddress: dispute.tokenAddress,
-      minBalance: dispute.minBalance
+      minBalance: dispute.minBalance,
+      createdAt: dispute.createdAt.toISOString(),
+      updatedAt: dispute.updatedAt.toISOString()
     };
   }
 }

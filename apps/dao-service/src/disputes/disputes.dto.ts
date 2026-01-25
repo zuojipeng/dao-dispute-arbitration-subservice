@@ -2,14 +2,7 @@ import { z } from "zod";
 
 export const createDisputeSchema = z.object({
   platformId: z.string().min(1), // 必填：关联的平台ID
-  platformDisputeId: z.string().min(1),
-  jobId: z.string().min(1),
-  billId: z.string().min(1),
-  agentId: z.string().min(1),
-  initiator: z.string().min(1),
-  reason: z.string().min(1),
-  evidenceUri: z.string().url().optional(),
-  tokenAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid token address").optional()
+  platformDisputeId: z.string().min(1) // 必填：平台争议唯一标识
 });
 
 export type CreateDisputeInput = z.infer<typeof createDisputeSchema>;

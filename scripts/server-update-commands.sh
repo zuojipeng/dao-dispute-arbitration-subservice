@@ -79,3 +79,4 @@ echo "=== 完成 ==="
 echo "查看服务状态: docker compose ps"
 echo "查看日志: docker compose logs -f dao-service"
 
+
